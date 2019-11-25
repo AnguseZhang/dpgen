@@ -342,7 +342,8 @@ def detect_batch_size(batch_size, system=None):
 def run_train (iter_index,
                jdata,
                mdata,
-               dispatcher) :
+               dispatcher,
+               machine=None) :
     # load json param
     numb_models = jdata['numb_models']
     # train_param = jdata['train_param']
@@ -415,7 +416,7 @@ def run_train (iter_index,
             for single_sys in os.listdir(os.path.join(ii)):
                 trans_comm_data += glob.glob(os.path.join(ii, single_sys, 'set.*'))
                 trans_comm_data += glob.glob(os.path.join(ii, single_sys, 'type.raw'))
-        else:
+        else: 
             trans_comm_data += glob.glob(os.path.join(ii, 'set.*'))
             trans_comm_data += glob.glob(os.path.join(ii, 'type.raw'))
     for ii in fp_data :
@@ -432,17 +433,21 @@ def run_train (iter_index,
         train_group_size = mdata['train_group_size']
     except:
         train_group_size = 1
-
-    dispatcher.run_jobs(mdata['train_resources'],
-                        commands,
-                        work_path,
-                        run_tasks,
-                        train_group_size,
-                        trans_comm_data,
-                        forward_files,
-                        backward_files,
-                        outlog = 'train.log',
-                        errlog = 'train.log')
+    if isinstance(dispatcher, list):
+        while :
+            ## Check status
+    else:
+        dispatcher.run_jobs(mdata['train_resources'],
+                            commands,
+                            work_path,
+                            run_tasks,
+                            train_group_size,
+                            trans_comm_data,
+                            forward_files,
+                            backward_files,
+                            outlog = 'train.log',
+                            errlog = 'train.log',
+                            machine=machine)
 
 
 def post_train (iter_index,
@@ -671,7 +676,8 @@ def make_model_devi (iter_index,
 def run_model_devi (iter_index,
                     jdata,
                     mdata,
-                    dispatcher) :
+                    dispatcher,
+                    machine=None) :
     #rmdlog.info("This module has been run !")
     lmp_exec = mdata['lmp_command']
     model_devi_group_size = mdata['model_devi_group_size']
@@ -718,7 +724,8 @@ def run_model_devi (iter_index,
                         forward_files,
                         backward_files,
                         outlog = 'model_devi.log',
-                        errlog = 'model_devi.log')
+                        errlog = 'model_devi.log',
+                        machine=machine)
 
 
 def post_model_devi (iter_index,
@@ -1272,7 +1279,8 @@ def run_fp_inner (iter_index,
                   backward_files,
                   check_fin,
                   log_file = "log",
-                  forward_common_files=[]) :
+                  forward_common_files=[],
+                  machine=None) :
     fp_command = mdata['fp_command']
     fp_group_size = mdata['fp_group_size']
     fp_resources = mdata['fp_resources']
@@ -1300,13 +1308,15 @@ def run_fp_inner (iter_index,
                         forward_files,
                         backward_files,
                         outlog = log_file,
-                        errlog = log_file)
+                        errlog = log_file,
+                        machine=machine)
 
 
 def run_fp (iter_index,
             jdata,
             mdata,
-            dispatcher) :
+            dispatcher,
+            machine=None) :
     fp_style = jdata['fp_style']
     fp_pp_files = jdata['fp_pp_files']
 
@@ -1323,23 +1333,23 @@ def run_fp (iter_index,
         else:
             forward_common_files=[]
         run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _vasp_check_fin,
-                     forward_common_files=forward_common_files)
+                     forward_common_files=forward_common_files, machine=machine)
     elif fp_style == "pwscf" :
         forward_files = ['input'] + fp_pp_files
         backward_files = ['output']
-        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _qe_check_fin, log_file = 'output')
+        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _qe_check_fin, log_file = 'output', machine=machine)
     elif fp_style == "siesta":
         forward_files = ['input'] + fp_pp_files
         backward_files = ['output']
-        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _siesta_check_fin, log_file='output')
+        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _siesta_check_fin, log_file='output', machine=machine)
     elif fp_style == "gaussian":
         forward_files = ['input']
         backward_files = ['output']
-        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _gaussian_check_fin, log_file = 'output')
+        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _gaussian_check_fin, log_file = 'output', machine=machine)
     elif fp_style == "cp2k":
         forward_files = ['input.inp', 'coord.xyz']
         backward_files = ['output']
-        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _cp2k_check_fin, log_file = 'output')
+        run_fp_inner(iter_index, jdata, mdata, dispatcher, forward_files, backward_files, _cp2k_check_fin, log_file = 'output', machine=machine)
     else :
         raise RuntimeError ("unsupported fp style")
 
@@ -1672,15 +1682,6 @@ def run_iter (param_file, machine_file) :
        fmachine=SHORT_CMD+'_'+machine_file.split('.')[0]+'.'+jdata.get('pretty_format','json')
        dumpfn(mdata,fmachine,indent=4)
 
-    if mdata.get('handlers', None):
-        if mdata['handlers'].get('smtp', None):
-            que = queue.Queue(-1)
-            queue_handler = logging.handlers.QueueHandler(que)
-            smtp_handler = logging.handlers.SMTPHandler(**mdata['handlers']['smtp'])
-            listener = logging.handlers.QueueListener(que, smtp_handler)
-            dlog.addHandler(queue_handler)
-            listener.start()
-
     max_tasks = 10000
     numb_task = 9
     record = "record.dpgen"
@@ -1693,54 +1694,187 @@ def run_iter (param_file, machine_file) :
 
     cont = True
     ii = -1
-    while cont:
-        ii += 1
-        iter_name=make_iter_name(ii)
-        sepline(iter_name,'=')
-        for jj in range (numb_task) :
-            if ii * max_tasks + jj <= iter_rec[0] * max_tasks + iter_rec[1] :
-                continue
-            task_name="task %02d"%jj
-            sepline(task_name,'-')
-            if   jj == 0 :
-                log_iter ("make_train", ii, jj)
-                make_train (ii, jdata, mdata)
-            elif jj == 1 :
-                log_iter ("run_train", ii, jj)
-                mdata  = decide_train_machine(mdata)
-                disp = make_dispatcher(mdata['train_machine'])
-                run_train  (ii, jdata, mdata, disp)
-            elif jj == 2 :
-                log_iter ("post_train", ii, jj)
-                post_train (ii, jdata, mdata)
-            elif jj == 3 :
-                log_iter ("make_model_devi", ii, jj)
-                cont = make_model_devi (ii, jdata, mdata)
-                if not cont :
-                    break
-            elif jj == 4 :
-                log_iter ("run_model_devi", ii, jj)
-                mdata = decide_model_devi_machine(mdata)
-                disp = make_dispatcher(mdata['model_devi_machine'])
-                run_model_devi (ii, jdata, mdata, disp)
-            elif jj == 5 :
-                log_iter ("post_model_devi", ii, jj)
-                post_model_devi (ii, jdata, mdata)
-            elif jj == 6 :
-                log_iter ("make_fp", ii, jj)
-                make_fp (ii, jdata, mdata)
-            elif jj == 7 :
-                log_iter ("run_fp", ii, jj)
-                mdata = decide_fp_machine(mdata)
-                disp = make_dispatcher(mdata['fp_machine'])
-                run_fp (ii, jdata, mdata, disp)
-            elif jj == 8 :
-                log_iter ("post_fp", ii, jj)
-                post_fp (ii, jdata)
-            else :
-                raise RuntimeError ("unknown task %d, something wrong" % jj)
-            record_iter (record, ii, jj)
 
+    # if machine_type == ali, we need to create instances
+    if mdata['train_machine']['machine_type'] == 'ali':
+        remote_ali = ALI()
+        created_result = remote_ali.create_machine(numb_task, mdata['train_machine']['InstanceType'])
+        while created_result == 'create failed':
+            dlog.info("create ali instances failed, try to recreate")
+            created_result = remote_ali.create_machine(numb_task, mdata['train_machine']['InstanceType'])
+        dlog.info("ali instances create successful!, job start!")
+
+        while cont:
+            ii += 1
+            iter_name=make_iter_name(ii)
+            sepline(iter_name,'=')
+            for jj in range (numb_task) :
+                if ii * max_tasks + jj <= iter_rec[0] * max_tasks + iter_rec[1] :
+                    continue
+                task_name="task %02d"%jj
+                sepline(task_name,'-')
+                if   jj == 0 :
+                    log_iter ("make_train", ii, jj)
+                    make_train (ii, jdata, mdata)
+                elif jj == 1 :
+                    log_iter ("run_train", ii, jj)
+                    mdata  = decide_train_machine(mdata)
+                    # for check status
+                    disp_set = []
+                    # created_result is ip list, we need to assign ip address to mdata['train_machine']['hostname']
+                    for i in range(len(created_result)):
+                        mdata['train_machine']['hostname'] = created_result[i]
+                        disp = make_dispatcher(mdata['train_machine'])
+                        # run_train -> disp.run_jobs() -> check_status
+                        # I want to add a param:[machine_type = "ali" ]to run_train, pass it to dispatcher.run_jobs()
+                        # and in dis.run_jobs(), if machine_type == "ali", check job_status and let it return immediately
+                        # else use the old interface.
+                        disp_set.append(disp)
+                        run_train  (ii, jdata, mdata, disp, machine="ali")
+                    # check job_status
+                    flag = True
+                    while flag:
+                        # all jobs have finished
+                        if len(disp_set) == 0:
+                            flag = False
+                        for i in range(len(disp_set)):
+                            status = disp_set[i].checkBatch.check_status()
+                            if status == JobStatus.finished:
+                                # download data, then delete the machine
+                                disp_set[i].ali_download(ii, jdata, mdata)
+                                remote_ali.delete_machine(remote_ali.instance_list[i])
+                                # remove machine instanceid
+                                remote_ali.instance_list.pop(i)
+                                remote_ali.ip_list.pop(i)
+                                disp_set.pop(i)
+                            elif status == JobStatus.running:
+                                continue
+                            elif status == JobStatus.terminated:
+                                run_train(ii, jdata, mdatam disp, machine="ali")
+                elif jj == 2 :
+                    log_iter ("post_train", ii, jj)
+                    post_train (ii, jdata, mdata)
+                elif jj == 3 :
+                    log_iter ("make_model_devi", ii, jj)
+                    cont = make_model_devi (ii, jdata, mdata)
+                    if not cont :
+                        break
+                elif jj == 4 :
+                    log_iter ("run_model_devi", ii, jj)
+                    mdata = decide_model_devi_machine(mdata)
+                    for i in range(len(created_result)):
+                        mdata['model_devi_machine']['hostname'] = created_result[i]
+                        disp = make_dispatcher(mdata['model_devi_machine'])
+                        run_model_devi (ii, jdata, mdata, disp, machine="ali")
+                    # check job_status
+                    flag = True
+                    while flag:
+                        # all jobs have finished
+                        if len(disp_set) == 0:
+                            flag = False
+                        for i in range(len(disp_set)):
+                            status = disp_set[i].checkBatch.check_status()
+                            if status == JobStatus.finished:
+                                # download data, then delete the machine
+                                disp_set[i].ali_download(ii, jdata, mdata)
+                                remote_ali.delete_machine(remote_ali.instance_list[i])
+                                # remove machine instanceid
+                                remote_ali.instance_list.pop(i)
+                                remote_ali.ip_list.pop(i)
+                                disp_set.pop(i)
+                            elif status == JobStatus.running:
+                                continue
+                            elif status == JobStatus.terminated:
+                                run_model_devi(ii, jdata, mdatam disp, machine="ali")
+
+                elif jj == 5 :
+                    log_iter ("post_model_devi", ii, jj)
+                    post_model_devi (ii, jdata, mdata)
+                elif jj == 6 :
+                    log_iter ("make_fp", ii, jj)
+                    make_fp (ii, jdata, mdata)
+                elif jj == 7 :
+                    log_iter ("run_fp", ii, jj)
+                    mdata = decide_fp_machine(mdata)
+                    for i in range(len(created_result)):
+                        mdata['fp_machine']['hostname'] = created_result[i]
+                        disp = make_dispatcher(mdata['fp_machine'])
+                        run_fp (ii, jdata, mdata, disp, machine="ali")
+                    # check job_status
+                    flag = True
+                    while flag:
+                        # all jobs have finished
+                        if len(disp_set) == 0:
+                            flag = False
+                        for i in range(len(disp_set)):
+                            status = disp_set[i].checkBatch.check_status()
+                            if status == JobStatus.finished:
+                                # download data, then delete the machine
+                                disp_set[i].ali_download(ii, jdata, mdata)
+                                remote_ali.delete_machine(remote_ali.instance_list[i])
+                                # remove machine instanceid
+                                remote_ali.instance_list.pop(i)
+                                remote_ali.ip_list.pop(i)
+                                disp_set.pop(i)
+                            elif status == JobStatus.running:
+                                continue
+                            elif status == JobStatus.terminated:
+                                run_fp(ii, jdata, mdatam disp, machine="ali")
+                elif jj == 8 :
+                    log_iter ("post_fp", ii, jj)
+                    post_fp (ii, jdata)
+                else :
+                    raise RuntimeError ("unknown task %d, something wrong" % jj)
+                record_iter (record, ii, jj)
+    else:
+        while cont:
+            ii += 1
+            iter_name=make_iter_name(ii)
+            sepline(iter_name,'=')
+            for jj in range (numb_task) :
+                if ii * max_tasks + jj <= iter_rec[0] * max_tasks + iter_rec[1] :
+                    continue
+                task_name="task %02d"%jj
+                sepline(task_name,'-')
+                if   jj == 0 :
+                    log_iter ("make_train", ii, jj)
+                    make_train (ii, jdata, mdata)
+                elif jj == 1 :
+                    log_iter ("run_train", ii, jj)
+                    mdata  = decide_train_machine(mdata)
+
+                    disp = make_dispatcher(mdata['train_machine'])
+                    run_train  (ii, jdata, mdata, disp)
+                elif jj == 2 :
+                    log_iter ("post_train", ii, jj)
+                    post_train (ii, jdata, mdata)
+                elif jj == 3 :
+                    log_iter ("make_model_devi", ii, jj)
+                    cont = make_model_devi (ii, jdata, mdata)
+                    if not cont :
+                        break
+                elif jj == 4 :
+                    log_iter ("run_model_devi", ii, jj)
+                    mdata = decide_model_devi_machine(mdata)
+                    disp = make_dispatcher(mdata['model_devi_machine'])
+                    run_model_devi (ii, jdata, mdata, disp)
+                elif jj == 5 :
+                    log_iter ("post_model_devi", ii, jj)
+                    post_model_devi (ii, jdata, mdata)
+                elif jj == 6 :
+                    log_iter ("make_fp", ii, jj)
+                    make_fp (ii, jdata, mdata)
+                elif jj == 7 :
+                    log_iter ("run_fp", ii, jj)
+                    mdata = decide_fp_machine(mdata)
+                    disp = make_dispatcher(mdata['fp_machine'])
+                    run_fp (ii, jdata, mdata, disp)
+                elif jj == 8 :
+                    log_iter ("post_fp", ii, jj)
+                    post_fp (ii, jdata)
+                else :
+                    raise RuntimeError ("unknown task %d, something wrong" % jj)
+                record_iter (record, ii, jj)
 
 def gen_run(args) :
     if args.PARAM and args.MACHINE:

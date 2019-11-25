@@ -1,0 +1,109 @@
+{
+    "train":[
+        {
+            "machine": {
+                "machine_type":"ali",
+                "InstanceType":"",
+                "hostname":"",
+                "port":"",
+                "username":"",
+                "work_path":"/root/",
+                "ImageID":"",
+                "LoginMode":"Password",
+                "Password":"975481Ding!",
+                "KeyName":"dzh"
+            },
+
+            "resources": {
+                "numb_node":1,
+                "numb_gpu":0,
+                "task_per_node":1,
+                "partition":"",
+                "exclude_list":[],
+                "source_list":[],
+                "module_list":[],
+                "time_limit":"23:00:00",
+                "mem_limit":"",
+                "with_mpi":true,
+                "qos":"data"
+            },
+
+            "deepmd_path":""
+        }
+    ],
+
+
+    "model_devi":[
+        {
+            "machine": {
+                "machine_type":"ali",
+                "InstanceType":"ecs_c6_large",
+                "hostname":"",
+                "port":"",
+                "username":"",
+                "work_path":"/root/",
+                "ImageID":"",
+                "SecurityGroupID":"",
+                "LoginMode":"Password",
+                "Password":"975481Ding!",
+                "KeyName":"dzh"
+            },
+
+            "resources": {
+                "numb_node":1,
+                "numb_gpu":0,
+                "task_per_node":1,
+                "partition":"",
+                "exclude_list":[],
+                "source_list":[],
+                "module_list":[],
+                "time_limit":"23:00:00",
+                "mem_limit":"",
+                "with_mpi":true,
+                "qos":"data"
+            },
+
+            "command":"",
+
+            "group_size":""
+        }
+    ],
+
+    "fp":[
+        {
+            "machine": {
+                "machine_type":"ali",
+                "InstanceType":"ecs_c6_large",
+                "hostname":"",
+                "port":"",
+                "username":"",
+                "work_path":"/root/",
+                "ImageID":"",
+                "SecurityGroupID":"",
+                "LoginMode":"Password",
+                "Password":"975481Ding!",
+                "KeyName":"dzh"
+            },
+
+            "resources": {
+                "numb_node":1,
+                "numb_gpu":0,
+                "task_per_node":1,
+                "partition":"",
+                "exclude_list":[],
+                "source_list":[],
+                "module_list":[],
+                "time_limit":"23:00:00",
+                "mem_limit":"",
+                "with_mpi":true,
+                "qos":"data"
+            },
+
+            "command":"",
+
+            "group_size":""
+        }
+
+    ]
+
+}

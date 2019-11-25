@@ -17,8 +17,11 @@ instancdType = {
     'GPU':'ecs.gn6v-c8g1.2xlarge'
 }
 
-class ALI(Batch):
-
+class ALI():
+    def __init__(self):
+        self.ip_list = None
+        self.regionID = None
+        self.instance_list = None
     # 尝试进行创建，但不真正创建，相当于pre_check，需要传入要创建的实例数量，实例类型
     def pre_create(self, instance_number, instance_type):
         for i in range(6):
@@ -37,6 +40,7 @@ class ALI(Batch):
             response = json.loads(response)
             # 如果可以创建，就返回true，否则继续查询
             if response['Code'] == 'DryRunOperation':
+                self.regionID = regionID[i]
                 return templateName
                 # 例子：ecs.c6.large_cn-hangzhou_i
                 # 通过函数返回的结果来判断是否可以创建成功，即开头都是ecs
@@ -49,9 +53,9 @@ class ALI(Batch):
     def create_machine(self, instance_number, instance_type):
         # pre_check实际上就是模板的名字
         pre_check = self.pre_create(instance_number, instance_type)
-        if pre_check[:2] == 'ecs':
-            client = AcsClient('LTAI4FwshjFwCTD7tFHmQfh1','Oea8lGGbpNM1Bw8UmSMu2Deft8ve7e', 'cn-hangzhou')
-            # 申请5台机器
+        # it imply that we can create instances in this region
+        if self.regionID:
+            client = AcsClient('LTAI4FwshjFwCTD7tFHmQfh1','Oea8lGGbpNM1Bw8UmSMu2Deft8ve7e', self.regionID)
             request = RunInstancesRequest()
             request.set_accept_format('json')
             request.set_UniqueSuffix(True)
@@ -62,6 +66,7 @@ class ALI(Batch):
             response = json.loads(response)
             # 获取实例ID
             InstanceId = response["InstanceIdSets"]["InstanceIdSet"]
+            self.instance_list = InstanceId
             time.sleep(5)
             # 等待机器创建，获取ip地址
             request = DescribeInstancesRequest()
@@ -76,10 +81,16 @@ class ALI(Batch):
             ip = []
             for i in range(len(response["Instances"]["Instance"])):
                 ip.append(response["Instances"]["Instance"][i]["PublicIpAddress"]['IpAddress'])
-
+            self.ip_list = ip
             return ip
         else:
             return "create failed"
 
-
+    def delete_machine(self):
+        client = AcsClient('LTAI4FwshjFwCTD7tFHmQfh1','Oea8lGGbpNM1Bw8UmSMu2Deft8ve7e', self.regionID)
+        request = DeleteInstancesRequest()
+        request.set_accept_format('json')
+        request.set_InstanceIds(InstanceId)
+        request.set_Force(True)
+        response = client.do_action_with_exception(request)
         
